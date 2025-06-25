@@ -1,0 +1,198 @@
+{
+  "name": "UTFPR - IA COVERSOR DE PDF",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "conversor",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -540,
+        -80
+      ],
+      "id": "59c7b387-b0b2-4e59-a689-628a03636e3e",
+      "name": "Webhook",
+      "webhookId": "f4469836-7caa-47ff-bef6-d3067120b1b8"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.text }}",
+        "options": {
+          "systemMessage": "={\n  \"name\": \"LeitorPDF\",\n  \"objectives\": [\n    \"[{{ $item(\"0\").$node[\"Extract from File\"].json[\"text\"] }}. Extraia SOMENTE os dados das tabelas do PDF conforme o padrão de colunas abaixo e retorne EXCLUSIVAMENTE no formato CSV, SEM linhas ou células N/A, sem títulos extras, sem comentários, exatamente no seguinte formato e separando cada campo por vírgula, uma linha para cada registro:\",\n    \"\",\n    \"TOMBO NOVO,TOMBO ANTIGO,INSTITUICAO,DESCRICAO DO BEM,LOCAL FISICO\",\n    \"\",\n    \"Exemplo:\",\n    \"834,1333,UTFPR,Cadeira,Q-108\",\n    \"11134,20421,UTFPR,Cadeira,Q-104\",\n    \"\",\n    \"IMPORTANTE:\",\n    \"- Na coluna 'DESCRICAO DO BEM', coloque APENAS o valor que aparece na coluna 'Descrição' da tabela do PDF.\",\n    \"- NÃO inclua informações de 'Estado de Conservação', 'Situação' ou qualquer outro campo nesta coluna.\",\n    \"- Cada coluna do CSV deve conter exclusivamente o valor correspondente da tabela original, sem concatenações ou misturas.\",\n    \"Se algum campo estiver vazio, apenas deixe em branco entre as vírgulas, sem colocar N/A, null ou aspas.\",\n    \"Não inclua nenhum texto extra, títulos duplicados ou comentários fora do padrão CSV solicitado.\"\n  ],\n  \"general_rules\": [\n    \"Seja preciso e rigoroso ao preencher as colunas.\",\n    \"Não coloque aspas em campos vazios ou inteiros.\",\n    \"Não acrescente títulos, comentários, legendas ou qualquer texto fora do padrão CSV solicitado.\"\n  ]\n}\n"
+        }
+      },
+      "id": "c2b16c0b-2e01-40de-be22-37790493d34c",
+      "name": "Leitor PDF",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "position": [
+        260,
+        -80
+      ],
+      "typeVersion": 1.8
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        180,
+        160
+      ],
+      "id": "22a914d6-140d-4577-8bfb-37560e23e2d1",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "utq4ZPNIWOdlvSLZ",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "=data",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        -20,
+        -80
+      ],
+      "id": "e409c0eb-e38f-4304-b197-b3b7beb9d59b",
+      "name": "Extract from File"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [\n  {\n    binary: {\n      data: {\n        data: $json.body.files[0].content,\n        mimeType: 'application/pdf',\n        fileName: $json.body.files[0].name || 'documento.pdf'\n      }\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -300,
+        -80
+      ],
+      "id": "4ef4786c-5ecd-4282-b3fd-cd32334d056b",
+      "name": "Code"
+    },
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.2,
+      "position": [
+        900,
+        -80
+      ],
+      "id": "455eef1d-17a9-4f0f-8d0c-9667629b3f31",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "const inputData = $json[\"output\"].trim();\n\nconst linhas = inputData.split('\\n');\n// Ignora cabeçalho, se vier\nconst linhasDados = linhas.filter(l => l && !l.toLowerCase().includes('tombo novo'));\n\nconst registros = linhasDados.map(linha => {\n  const [tomboNovo, tomboAntigo, instituicao, descricao, localFisico] = linha.replace(/\"/g, '').split(',');\n\n  return {\n    \"Tombo Novo\": tomboNovo ? tomboNovo.trim() : \"\",\n    \"Tombo Antigo\": tomboAntigo ? tomboAntigo.trim() : \"\",\n    \"Instituição\": instituicao ? instituicao.trim() : \"\",\n    \"Descricao do Bem\": descricao ? descricao.trim().split(' ')[0] : \"\",\n    \"Local Físico\": localFisico ? localFisico.trim() : \"\"\n  };\n});\n\nreturn registros.map(item => ({ json: item }));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        640,
+        -80
+      ],
+      "id": "f528c6b0-9eab-4ed2-8353-3dc5117a6422",
+      "name": "Code1"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leitor PDF": {
+      "main": [
+        [
+          {
+            "node": "Code1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Leitor PDF",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Leitor PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code1": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "9dc0129d-5275-4644-99a9-7071f9738a2d",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "74b8140af2ec36d65b139b1db371907da1456c45bf8acd620535b542e3e80dbc"
+  },
+  "id": "Hko5DKAkWcWtTmW5",
+  "tags": []
+}
